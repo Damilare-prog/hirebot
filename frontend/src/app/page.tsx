@@ -5,7 +5,6 @@ import { IconBriefcase, IconSend, IconSettings, IconAdjustments, IconBolt } from
 import Sidebar from '@/components/Sidebar';
 import JobCard from '@/components/JobCard';
 import ApplyModal from '@/components/ApplyModal';
-import { apiFetch } from '@/lib/utils';
 
 const DEMO_JOBS = [
   { id: '1', title: 'Senior Frontend Engineer', company: 'Stripe', match_score: 94, salary_min: 140000, salary_max: 175000, posted_at: '2h ago', tags: ['React', 'TypeScript', 'Payments'], status: 'new', source_url: '#', apply_url: '#' },
@@ -30,7 +29,6 @@ export default function Home() {
   const [scanning, setScanning] = useState(true);
   const [stats, setStats] = useState({ found: 247, matches: 18, applied: 3, responses: 1 });
 
-  // Simulate scanning status
   useEffect(() => {
     const interval = setInterval(() => {
       setScanning(s => !s);
@@ -40,7 +38,7 @@ export default function Home() {
 
   const handleProfileUpdate = useCallback((p: any) => {
     setProfile(p);
-    setStats(s => ({ ...s, matches: 18, found: 247 }));
+    setStats(s => ({ ...s, matches: p.skills?.length || 0 }));
   }, []);
 
   const handleApply = useCallback((jobId: string) => {
@@ -58,7 +56,6 @@ export default function Home() {
     ));
     setStats(s => ({ ...s, applied: s.applied + 1 }));
 
-    // Simulate completion
     setTimeout(() => {
       setJobs(prev => prev.map(j => 
         j.id === modalJob?.id ? { ...j, status: 'applied' } : j
@@ -78,7 +75,6 @@ export default function Home() {
       j.status === 'new' ? { ...j, status: 'applying' } : j
     ));
 
-    let delay = 0;
     eligible.forEach((job, i) => {
       setTimeout(() => {
         setJobs(prev => prev.map(j => 
