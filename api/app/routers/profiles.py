@@ -25,9 +25,9 @@ async def upload_cv(
     contents = await file.read()
     logger.info(f"Received file: {file.filename}, size: {len(contents)} bytes")
 
-    # Parse CV
+    # Parse CV - MUST use await here!
     try:
-        parsed = parse_cv_with_gemini(contents, file.filename, file.content_type)
+        parsed = await parse_cv_with_gemini(contents, file.filename, file.content_type)
         logger.info(f"Parsed: {parsed['fullName']}, skills: {len(parsed['skills'])}")
     except Exception as e:
         logger.error(f"Parse error: {str(e)}\n{traceback.format_exc()}")
