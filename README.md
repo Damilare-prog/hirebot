@@ -105,4 +105,4 @@ git push origin main
 # 6. Set environment variables in Railway dashboard
 ```
 
-See [RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) for detailed instructions.
+See [RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) for detailed instructions. 
