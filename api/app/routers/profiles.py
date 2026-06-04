@@ -2,6 +2,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 import json
+import traceback
+import logging
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -10,6 +12,9 @@ from app.services.cv_parser import parse_cv_with_gemini, generate_cover_letter
 from app.services.embeddings import get_embedding, build_profile_text
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @router.post("/upload-cv")
 async def upload_cv(
@@ -22,45 +27,58 @@ async def upload_cv(
         raise HTTPException(400, "Unsupported file type. Use PDF, DOCX, or TXT.")
 
     contents = await file.read()
+    logger.info(f"Received file: {file.filename}, size: {len(contents)} bytes")
 
     # Step 1: Parse with Gemini (free tier)
     try:
         parsed = await parse_cv_with_gemini(contents, file.filename, file.content_type)
+        logger.info(f"Parsed CV: {parsed.get('fullName', 'unknown')}, skills: {len(parsed.get('skills', []))}")
     except Exception as e:
+        logger.error(f"CV parsing failed: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(500, f"CV parsing failed: {str(e)}")
 
     # Step 2: Generate embedding
     profile_text = build_profile_text(parsed)
     try:
         embedding = await get_embedding(profile_text)
+        logger.info("Embedding generated successfully")
     except Exception as e:
+        logger.error(f"Embedding generation failed: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(500, f"Embedding generation failed: {str(e)}")
 
     # Step 3: Save to DB
-    profile = Profile(
-        full_name=parsed["fullName"],
-        email=parsed["email"],
-        linkedin_url=parsed.get("linkedInUrl"),
-        phone=parsed.get("phone"),
-        years_experience=parsed.get("yearsExperience", 0),
-        skills=parsed.get("skills", []),
-        job_titles=parsed.get("jobTitles", []),
-        education=json.dumps(parsed.get("education", [])),
-        writing_style=parsed.get("writingStyle", ""),
-        embedding=json.dumps(embedding),  # Store as JSON string
-        cv_file_url=f"/uploads/{file.filename}"
-    )
+    try:
+        profile = Profile(
+            full_name=parsed["fullName"],
+            email=parsed["email"],
+            linkedin_url=parsed.get("linkedInUrl"),
+            phone=parsed.get("phone"),
+            years_experience=parsed.get("yearsExperience", 0),
+            skills=parsed.get("skills", []),
+            job_titles=parsed.get("jobTitles", []),
+            education=json.dumps(parsed.get("education", [])),
+            writing_style=parsed.get("writingStyle", ""),
+            embedding=json.dumps(embedding),  # Store as JSON string
+            cv_file_url=f"/uploads/{file.filename}"
+        )
 
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+        logger.info(f"Profile saved to DB: {profile.id}")
 
-    return {
-        "profile_id": str(profile.id),
-        "parsed": parsed,
-        "skills_count": len(parsed.get("skills", [])),
-        "embedding_ready": True
-    }
+        return {
+            "profile_id": str(profile.id),
+            "parsed": parsed,
+            "skills_count": len(parsed.get("skills", [])),
+            "embedding_ready": True
+        }
+    except Exception as e:
+        logger.error(f"Database save failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(500, f"Database save failed: {str(e)}")
 
 @router.get("/{profile_id}")
 async def get_profile(profile_id: str, db: Session = Depends(get_db)):
