@@ -8,7 +8,7 @@ except ImportError:
     PyPDF2 = None
 
 try:
-    import google.generativeai as genai
+    from google import genai
 except ImportError:
     genai = None
 
@@ -59,7 +59,6 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 text += page_text + "\n"
         return text.strip()
     except Exception as e:
-        # Fallback: try to decode as text
         return file_bytes.decode('utf-8', errors='ignore')
 
 def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
@@ -67,14 +66,13 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     if filename.lower().endswith('.pdf'):
         return extract_text_from_pdf(file_bytes)
     else:
-        # For .txt, .docx (basic), etc.
         return file_bytes.decode('utf-8', errors='ignore')
 
 async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: str) -> dict:
-    """Send CV to Gemini for parsing."""
+    """Send CV to Gemini for parsing using new google.genai package."""
     
     if genai is None:
-        raise ImportError("google-generativeai is not installed. Run: pip install google-generativeai")
+        raise ImportError("google.genai is not installed. Run: pip install google-genai")
     
     # Extract text from file
     text_content = extract_text_from_file(file_bytes, filename)
@@ -83,9 +81,7 @@ async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: s
         raise ValueError("Could not extract text from CV. Please upload a text-based PDF or .txt file.")
     
     # Configure Gemini
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    
-    model = genai.GenerativeModel('gemini-1.5-flash')  # Free tier model
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
     prompt = f"""{CV_PARSE_PROMPT}
 
@@ -95,7 +91,10 @@ CV CONTENT:
 {text_content[:15000]}
 """
     
-    response = await model.generate_content_async(prompt)
+    response = await client.aio.models.generate_content(
+        model='gemini-2.0-flash',
+        contents=prompt
+    )
     
     # Extract JSON from response
     content = response.text
@@ -111,55 +110,17 @@ CV CONTENT:
     
     return parsed
 
-async def parse_cv_with_claude(file_bytes: bytes, filename: str, content_type: str) -> dict:
-    """Fallback to Claude if Gemini fails."""
-    # Keep the old Claude function as fallback
-    import httpx
-    
-    text_content = extract_text_from_file(file_bytes, filename)
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": settings.ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": settings.CLAUDE_MODEL or "claude-3-sonnet-20240229",
-                "max_tokens": 2000,
-                "system": CV_PARSE_PROMPT,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": f"Parse this CV and return structured JSON.\n\nCV CONTENT:\n{text_content[:15000]}"
-                    }
-                ]
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        content = data["content"][0]["text"]
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        parsed = json.loads(content[start:end])
-
-        return parsed
-
 async def generate_cover_letter(
     user_profile: dict,
     job: dict,
     writing_style: str
 ) -> str:
-    """Generate a tailored cover letter using Gemini (free tier)."""
+    """Generate a tailored cover letter using Gemini."""
     
     if genai is None:
-        raise ImportError("google-generativeai is not installed")
+        raise ImportError("google.genai is not installed")
     
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
     prompt = f"""You are an expert career writer. Write a concise, compelling cover letter (150-200 words) for this job application.
 
@@ -185,5 +146,9 @@ Requirements:
 - Keep it under 200 words
 """
     
-    response = await model.generate_content_async(prompt)
+    response = await client.aio.models.generate_content(
+        model='gemini-2.0-flash',
+        contents=prompt
+    )
+    
     return response.text.strip()
