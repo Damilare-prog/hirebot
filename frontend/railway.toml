@@ -1,0 +1,6 @@
+[build]
+builder = "NIXPACKS"
+root = "frontend"
+
+[deploy]
+startCommand = "npm run start"

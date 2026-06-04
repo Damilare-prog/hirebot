@@ -1,0 +1,23 @@
+#!/bin/bash
+# Railway deployment helper
+
+echo "=== Hirebot Railway Deployment ==="
+echo ""
+echo "Prerequisites:"
+echo "  1. Railway CLI installed: npm install -g @railway/cli"
+echo "  2. Logged in: railway login"
+echo "  3. Git repo pushed to GitHub"
+echo ""
+echo "Steps:"
+echo "  1. Create project: railway init"
+echo "  2. Add Postgres: railway add --database postgres"
+echo "  3. Add Redis: railway add --database redis"
+echo "  4. Deploy API: cd api && railway up"
+echo "  5. Deploy Frontend: cd frontend && railway up"
+echo ""
+echo "Or use the Railway dashboard:"
+echo "  1. Go to https://railway.app"
+echo "  2. New Project -> Deploy from GitHub repo"
+echo "  3. Add Postgres and Redis services"
+echo "  4. Set environment variables"
+echo ""
