@@ -1,5 +1,6 @@
 import json
 import io
+import re
 from typing import Optional
 
 try:
@@ -8,7 +9,7 @@ except ImportError:
     PyPDF2 = None
 
 try:
-    from google import genai
+    import google.generativeai as genai
 except ImportError:
     genai = None
 
@@ -59,6 +60,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 text += page_text + "\n"
         return text.strip()
     except Exception as e:
+        # Fallback: try to decode as text
         return file_bytes.decode('utf-8', errors='ignore')
 
 def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
@@ -66,13 +68,14 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     if filename.lower().endswith('.pdf'):
         return extract_text_from_pdf(file_bytes)
     else:
+        # For .txt, .docx (basic), etc.
         return file_bytes.decode('utf-8', errors='ignore')
 
 async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: str) -> dict:
-    """Send CV to Gemini for parsing using new google.genai package."""
+    """Send CV to Gemini for parsing."""
     
     if genai is None:
-        raise ImportError("google.genai is not installed. Run: pip install google-genai")
+        raise ImportError("google.generativeai is not installed. Run: pip install google-generativeai")
     
     # Extract text from file
     text_content = extract_text_from_file(file_bytes, filename)
@@ -81,7 +84,9 @@ async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: s
         raise ValueError("Could not extract text from CV. Please upload a text-based PDF or .txt file.")
     
     # Configure Gemini
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    
+    model = genai.GenerativeModel('gemini-1.5-flash')  # Free tier model
     
     prompt = f"""{CV_PARSE_PROMPT}
 
@@ -91,10 +96,10 @@ CV CONTENT:
 {text_content[:15000]}
 """
     
-    response = await client.aio.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=prompt
-    )
+    try:
+        response = await model.generate_content_async(prompt)
+    except Exception as e:
+        raise ValueError(f"Gemini API error: {str(e)}")
     
     # Extract JSON from response
     content = response.text
@@ -106,7 +111,10 @@ CV CONTENT:
     if start == -1 or end == 0:
         raise ValueError("Could not parse JSON from Gemini response")
     
-    parsed = json.loads(content[start:end])
+    try:
+        parsed = json.loads(content[start:end])
+    except json.JSONDecodeError:
+        raise ValueError("Invalid JSON from Gemini response")
     
     return parsed
 
@@ -118,9 +126,10 @@ async def generate_cover_letter(
     """Generate a tailored cover letter using Gemini."""
     
     if genai is None:
-        raise ImportError("google.genai is not installed")
+        raise ImportError("google.generativeai is not installed")
     
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""You are an expert career writer. Write a concise, compelling cover letter (150-200 words) for this job application.
 
@@ -146,9 +155,13 @@ Requirements:
 - Keep it under 200 words
 """
     
-    response = await client.aio.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=prompt
-    )
-    
-    return response.text.strip()
+    try:
+        response = await model.generate_content_async(prompt)
+        return response.text.strip()
+    except Exception as e:
+        raise ValueError(f"Gemini API error: {str(e)}")
+
+# Keep old function for backward compatibility
+async def parse_cv_with_claude(file_bytes: bytes, filename: str, content_type: str) -> dict:
+    """Fallback to Claude if Gemini fails."""
+    return await parse_cv_with_gemini(file_bytes, filename, content_type)
