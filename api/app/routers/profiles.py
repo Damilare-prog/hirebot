@@ -6,7 +6,7 @@ import json
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models import Profile
-from app.services.cv_parser import parse_cv_with_claude, generate_cover_letter
+from app.services.cv_parser import parse_cv_with_gemini, generate_cover_letter
 from app.services.embeddings import get_embedding, build_profile_text
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -23,9 +23,9 @@ async def upload_cv(
 
     contents = await file.read()
 
-    # Step 1: Parse with Claude (or Gemini)
+    # Step 1: Parse with Gemini (free tier)
     try:
-        parsed = await parse_cv_with_claude(contents, file.filename, file.content_type)
+        parsed = await parse_cv_with_gemini(contents, file.filename, file.content_type)
     except Exception as e:
         raise HTTPException(500, f"CV parsing failed: {str(e)}")
 
