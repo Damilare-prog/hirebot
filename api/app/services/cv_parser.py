@@ -86,7 +86,7 @@ async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: s
     # Configure Gemini
     genai.configure(api_key=settings.GEMINI_API_KEY)
     
-    model = genai.GenerativeModel('gemini-1.5-flash')  # Free tier model
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')  # Free tier model - UPDATED
     
     prompt = f"""{CV_PARSE_PROMPT}
 
