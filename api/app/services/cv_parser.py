@@ -1,167 +1,121 @@
+# cv_parser.py - Simple version, no AI needed
 import json
 import io
 import re
-from typing import Optional
 
 try:
     import PyPDF2
 except ImportError:
     PyPDF2 = None
 
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-
-from app.core.config import get_settings
-
-settings = get_settings()
-
-CV_PARSE_PROMPT = """You are an expert CV/resume parser. Extract structured information from the document.
-
-Return ONLY a JSON object with this exact structure:
-{
-  "fullName": "string",
-  "email": "string",
-  "linkedInUrl": "string or null",
-  "phone": "string or null",
-  "yearsExperience": number (total years, estimate if needed),
-  "skills": ["string"],
-  "jobTitles": ["string"],
-  "education": [
-    {
-      "institution": "string",
-      "degree": "string",
-      "field": "string or null",
-      "year": "string or null"
-    }
-  ],
-  "writingStyle": "string (2-3 sentences of the user's own writing style, extracted from their CV summary or about section)"
-}
-
-Rules:
-- Extract ALL technical skills, tools, frameworks, languages
-- Normalize skill names (e.g., "React.js" -> "React", "TypeScript" -> "TypeScript")
-- For yearsExperience: sum all professional roles, round to nearest year
-- writingStyle should capture the user's voice for later cover letter generation
-"""
-
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Extract text from PDF using PyPDF2."""
     if PyPDF2 is None:
-        raise ImportError("PyPDF2 is not installed. Run: pip install PyPDF2")
+        raise ImportError("PyPDF2 is not installed")
     
-    try:
-        pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-        text = ""
-        for page in pdf_reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-        return text.strip()
-    except Exception as e:
-        # Fallback: try to decode as text
-        return file_bytes.decode('utf-8', errors='ignore')
+    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+    text = ""
+    for page in pdf_reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
+    return text.strip()
 
 def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     """Extract text from PDF or text file."""
     if filename.lower().endswith('.pdf'):
         return extract_text_from_pdf(file_bytes)
     else:
-        # For .txt, .docx (basic), etc.
         return file_bytes.decode('utf-8', errors='ignore')
 
+def parse_cv_simple(file_bytes: bytes, filename: str) -> dict:
+    """Parse CV using simple regex patterns - no AI needed."""
+    
+    text = extract_text_from_file(file_bytes, filename)
+    
+    # Extract email
+    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+    email = email_match.group(0) if email_match else "unknown@email.com"
+    
+    # Extract phone
+    phone_match = re.search(r'[\+\(]?[1-9][0-9 .\-\(\)]{8,}[0-9]', text)
+    phone = phone_match.group(0) if phone_match else None
+    
+    # Extract LinkedIn
+    linkedin_match = re.search(r'linkedin\.com/in/[a-zA-Z0-9\-]+', text)
+    linkedin = linkedin_match.group(0) if linkedin_match else None
+    
+    # Extract name (first line or capitalized words)
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    full_name = lines[0] if lines else "Unknown Name"
+    
+    # Extract skills (common tech keywords)
+    skill_keywords = [
+        'python', 'javascript', 'typescript', 'react', 'node.js', 'nodejs', 'sql',
+        'postgresql', 'mongodb', 'aws', 'docker', 'kubernetes', 'git', 'html',
+        'css', 'tailwind', 'next.js', 'fastapi', 'django', 'flask', 'redis',
+        'graphql', 'rest', 'api', 'linux', 'bash', 'nginx', 'jenkins', 'ci/cd',
+        'terraform', 'ansible', 'prometheus', 'grafana', 'elasticsearch', 'kafka',
+        'rabbitmq', 'celery', 'pandas', 'numpy', 'scikit-learn', 'tensorflow',
+        'pytorch', 'opencv', 'nlp', 'machine learning', 'deep learning', 'ai',
+        'data science', 'data analysis', 'tableau', 'powerbi', 'excel', 'figma',
+        'sketch', 'adobe', 'photoshop', 'illustrator', 'ui/ux', 'product design',
+        'agile', 'scrum', 'jira', 'confluence', 'notion', 'slack', 'teams'
+    ]
+    
+    text_lower = text.lower()
+    skills = []
+    for skill in skill_keywords:
+        if skill in text_lower:
+            skills.append(skill.title())
+    
+    # Extract years of experience
+    years_match = re.search(r'(\d+)\+?\s*years?', text_lower)
+    years = int(years_match.group(1)) if years_match else 0
+    
+    # Extract job titles
+    job_titles = []
+    title_patterns = [
+        r'(?:Senior|Junior|Lead|Principal|Staff)?\s*(Software|Frontend|Backend|Full-Stack|DevOps|Data|ML|AI|Product|UI/UX|Web|Mobile)?\s*(Engineer|Developer|Designer|Manager|Architect|Scientist|Analyst)',
+        r'(?:Senior|Junior|Lead|Principal)?\s*(Developer|Engineer|Designer|Manager)',
+    ]
+    for pattern in title_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            if isinstance(match, tuple):
+                title = ' '.join(filter(None, match))
+            else:
+                title = match
+            if title and title not in job_titles:
+                job_titles.append(title.title())
+    
+    return {
+        "fullName": full_name,
+        "email": email,
+        "linkedInUrl": linkedin,
+        "phone": phone,
+        "yearsExperience": years,
+        "skills": skills[:20],  # Limit to 20 skills
+        "jobTitles": job_titles[:5],
+        "education": [],
+        "writingStyle": "Professional and detail-oriented."
+    }
+
 async def parse_cv_with_gemini(file_bytes: bytes, filename: str, content_type: str) -> dict:
-    """Send CV to Gemini for parsing."""
-    
-    if genai is None:
-        raise ImportError("google.generativeai is not installed. Run: pip install google-generativeai")
-    
-    # Extract text from file
-    text_content = extract_text_from_file(file_bytes, filename)
-    
-    if not text_content or len(text_content.strip()) < 50:
-        raise ValueError("Could not extract text from CV. Please upload a text-based PDF or .txt file.")
-    
-    # Configure Gemini
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')  # Free tier model - UPDATED
-    
-    prompt = f"""{CV_PARSE_PROMPT}
+    """Wrapper for simple parsing."""
+    return parse_cv_simple(file_bytes, filename)
 
-Parse this CV and return ONLY the JSON object:
+async def generate_cover_letter(user_profile: dict, job: dict, writing_style: str) -> str:
+    """Generate a simple cover letter without AI."""
+    return f"""Dear Hiring Manager,
 
-CV CONTENT:
-{text_content[:15000]}
-"""
-    
-    try:
-        response = await model.generate_content_async(prompt)
-    except Exception as e:
-        raise ValueError(f"Gemini API error: {str(e)}")
-    
-    # Extract JSON from response
-    content = response.text
-    
-    # Find JSON block
-    start = content.find("{")
-    end = content.rfind("}") + 1
-    
-    if start == -1 or end == 0:
-        raise ValueError("Could not parse JSON from Gemini response")
-    
-    try:
-        parsed = json.loads(content[start:end])
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON from Gemini response")
-    
-    return parsed
+I am excited to apply for the {job['title']} position at {job['company']}. With {user_profile['years_experience']} years of experience and expertise in {', '.join(user_profile['skills'][:5])}, I am confident in my ability to contribute effectively to your team.
 
-async def generate_cover_letter(
-    user_profile: dict,
-    job: dict,
-    writing_style: str
-) -> str:
-    """Generate a tailored cover letter using Gemini."""
-    
-    if genai is None:
-        raise ImportError("google.generativeai is not installed")
-    
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
-    
-    prompt = f"""You are an expert career writer. Write a concise, compelling cover letter (150-200 words) for this job application.
+I look forward to discussing how my skills align with your needs.
 
-CANDIDATE PROFILE:
-- Name: {user_profile['full_name']}
-- Experience: {user_profile['years_experience']} years
-- Skills: {', '.join(user_profile['skills'][:8])}
-- Previous roles: {', '.join(user_profile['job_titles'][:3])}
-
-JOB:
-- Title: {job['title']}
-- Company: {job['company']}
-- Description: {job['description'][:2000]}
-
-CANDIDATE'S WRITING STYLE (match this tone):
-{writing_style}
-
-Requirements:
-- Open with why this specific company/role excites them
-- Connect 2-3 specific skills to job requirements
-- Show personality matching the writing style
-- End with a confident call to action
-- Keep it under 200 words
-"""
-    
-    try:
-        response = await model.generate_content_async(prompt)
-        return response.text.strip()
-    except Exception as e:
-        raise ValueError(f"Gemini API error: {str(e)}")
+Best regards,
+{user_profile['full_name']}"""
 
 # Keep old function for backward compatibility
 async def parse_cv_with_claude(file_bytes: bytes, filename: str, content_type: str) -> dict:
-    """Fallback to Claude if Gemini fails."""
-    return await parse_cv_with_gemini(file_bytes, filename, content_type)
+    return parse_cv_simple(file_bytes, filename)
