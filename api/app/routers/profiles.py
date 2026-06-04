@@ -46,7 +46,8 @@ async def upload_cv(
     except Exception as e:
         logger.error(f"Embedding generation failed: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(500, f"Embedding generation failed: {str(e)}")
+        # Continue without embedding - it's not critical
+        embedding = []
 
     # Step 3: Save to DB
     try:
