@@ -22,9 +22,9 @@ const SOURCES = ['LinkedIn', 'Greenhouse', 'Lever', 'Workday', 'Remote.co'];
 
 export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilterChange }: SidebarProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<any>(null);
 
-  const handleUpload = async (e: React.ChangeEvent<<HTMLInputElement>) => {
+  const handleUpload = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
