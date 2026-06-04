@@ -129,7 +129,7 @@ async def generate_cover_letter(
         raise ImportError("google.generativeai is not installed")
     
     genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
     
     prompt = f"""You are an expert career writer. Write a concise, compelling cover letter (150-200 words) for this job application.
 
