@@ -44,14 +44,8 @@ export default function Home() {
   }, []);
 
   const handleApply = useCallback((jobId: string) => {
-    if (!profile) {
-      // Simulate upload first
-      handleProfileUpdate({
-        fullName: 'Ada Okafor',
-        email: 'ada.okafor@gmail.com',
-        skills: ['React', 'TypeScript', 'Node.js', 'Python', 'REST APIs', 'PostgreSQL', 'AWS', 'Figma'],
-        yearsExperience: 5,
-      });
+    if (!profile || !profile.id) {
+      alert('Please upload your CV first!');
       return;
     }
     const job = jobs.find(j => j.id === jobId);
@@ -74,13 +68,8 @@ export default function Home() {
   }, [modalJob]);
 
   const autoApplyAll = useCallback(() => {
-    if (!profile) {
-      handleProfileUpdate({
-        fullName: 'Ada Okafor',
-        email: 'ada.okafor@gmail.com',
-        skills: ['React', 'TypeScript', 'Node.js', 'Python', 'REST APIs', 'PostgreSQL', 'AWS', 'Figma'],
-        yearsExperience: 5,
-      });
+    if (!profile || !profile.id) {
+      alert('Please upload your CV first!');
       return;
     }
 
@@ -221,7 +210,7 @@ export default function Home() {
         isOpen={!!modalJob}
         onClose={() => setModalJob(null)}
         job={modalJob}
-        profileId={profile?.id || 'demo'}
+        profileId={profile?.id || ''}
         onApplied={handleApplied}
       />
     </div>
