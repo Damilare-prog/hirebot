@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { IconUpload, IconFileText, IconCheck } from '@tabler/icons-react';
+import { IconUpload, IconFileText, IconCheck, IconLoader } from '@tabler/icons-react';
 
 interface SidebarProps {
   profile: any;
@@ -22,6 +22,7 @@ const SOURCES = ['LinkedIn', 'Greenhouse', 'Lever', 'Workday', 'Remote.co'];
 
 export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilterChange }: SidebarProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<any>(null);
 
   const handleUpload = async (e: any) => {
@@ -29,6 +30,8 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
     if (!file) return;
 
     setIsUploading(true);
+    setUploadError('');
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -37,11 +40,24 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
         method: 'POST',
         body: formData,
       });
+
       const data = await res.json();
-      onProfileUpdate(data);
-    } catch (err) {
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Upload failed');
+      }
+
+      // Pass the full response including profile_id and parsed data
+      onProfileUpdate({
+        id: data.profile_id,
+        ...data.parsed,
+        skills: data.parsed.skills || [],
+        skills_count: data.skills_count,
+      });
+
+    } catch (err: any) {
       console.error('Upload failed:', err);
-      alert('Upload failed. Please try again.');
+      setUploadError(err.message || 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -62,11 +78,15 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
             className="w-full border border-dashed border-border-secondary rounded-lg p-4 text-center 
                        hover:bg-surface-secondary transition-colors cursor-pointer bg-surface-secondary"
           >
-            <IconUpload className="w-[22px] h-[22px] mx-auto text-text-tertiary mb-1.5" />
+            {isUploading ? (
+              <IconLoader className="w-[22px] h-[22px] mx-auto text-text-tertiary mb-1.5 animate-spin" />
+            ) : (
+              <IconUpload className="w-[22px] h-[22px] mx-auto text-text-tertiary mb-1.5" />
+            )}
             <div className="text-xs font-medium text-text-secondary">
               {isUploading ? 'Parsing...' : 'Upload CV or portfolio'}
             </div>
-            <div className="text-[11px] text-text-tertiary mt-0.5">PDF, DOCX, or URL</div>
+            <div className="text-[11px] text-text-tertiary mt-0.5">PDF, DOCX, or TXT</div>
           </button>
         ) : (
           <div className="border border-border-tertiary rounded-lg p-3 flex items-center gap-2.5 bg-surface-secondary">
@@ -75,11 +95,20 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium text-text-primary truncate">Your CV</div>
-              <div className="text-[11px] text-text-secondary">Parsed · {profile.skills?.length || 0} skills extracted</div>
+              <div className="text-[11px] text-text-secondary">
+                Parsed · {profile.skills?.length || 0} skills extracted
+              </div>
             </div>
             <IconCheck className="w-3.5 h-3.5 text-hirebot-green" />
           </div>
         )}
+
+        {uploadError && (
+          <div className="mt-2 text-[11px] text-red-500 px-2">
+            {uploadError}
+          </div>
+        )}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -90,14 +119,17 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
       </div>
 
       {/* Skills */}
-      {profile && (
+      {profile && profile.skills && profile.skills.length > 0 && (
         <div>
           <h3 className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-2 px-2">
-            Matched skills
+            Matched skills ({profile.skills.length})
           </h3>
           <div className="flex flex-wrap gap-1">
-            {(profile.skills || []).map((skill: string) => (
-              <span key={skill} className="text-[11px] px-2 py-0.5 rounded-full bg-surface-secondary border border-border-tertiary text-text-secondary">
+            {profile.skills.map((skill: string) => (
+              <span 
+                key={skill} 
+                className="text-[11px] px-2 py-0.5 rounded-full bg-surface-secondary border border-border-tertiary text-text-secondary"
+              >
                 {skill}
               </span>
             ))}
