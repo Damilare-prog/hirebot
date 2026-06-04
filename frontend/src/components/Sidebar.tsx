@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { IconUpload, IconFileText, IconCheck, IconWorld } from '@tabler/icons-react';
-import { apiFetch } from '@/lib/utils';
+import { IconUpload, IconFileText, IconCheck } from '@tabler/icons-react';
 
 interface SidebarProps {
   profile: any;
@@ -23,9 +22,9 @@ const SOURCES = ['LinkedIn', 'Greenhouse', 'Lever', 'Workday', 'Remote.co'];
 
 export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilterChange }: SidebarProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<<HTMLInputElement>(null);
+  const fileInputRef = useRef(null);
 
-  const handleUpload = async (e: React.ChangeEvent<<HTMLInputElement>) => {
+  const handleUpload = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -75,7 +74,7 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
               <IconFileText className="w-4 h-4 text-hirebot-green-dark" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-text-primary truncate">Ada_Okafor_CV.pdf</div>
+              <div className="text-xs font-medium text-text-primary truncate">Your CV</div>
               <div className="text-[11px] text-text-secondary">Parsed · {profile.skills?.length || 0} skills extracted</div>
             </div>
             <IconCheck className="w-3.5 h-3.5 text-hirebot-green" />
