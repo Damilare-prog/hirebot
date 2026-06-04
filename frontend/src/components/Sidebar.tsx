@@ -23,9 +23,9 @@ const SOURCES = ['LinkedIn', 'Greenhouse', 'Lever', 'Workday', 'Remote.co'];
 
 export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilterChange }: SidebarProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<<HTMLInputElement>(null);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -34,22 +34,15 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
     formData.append('file', file);
 
     try {
-      const res = await fetch('http://localhost:8000/profiles/upload-cv', {
+      const res = await fetch('https://hirebot-production.up.railway.app/profiles/upload-cv', {
         method: 'POST',
         body: formData,
       });
       const data = await res.json();
-      onProfileUpdate(data.parsed);
+      onProfileUpdate(data);
     } catch (err) {
       console.error('Upload failed:', err);
-      // For demo: simulate parsing
-      onProfileUpdate({
-        fullName: 'Ada Okafor',
-        email: 'ada.okafor@gmail.com',
-        skills: ['React', 'TypeScript', 'Node.js', 'Python', 'REST APIs', 'PostgreSQL', 'AWS', 'Figma'],
-        yearsExperience: 5,
-        jobTitles: ['Senior Frontend Engineer', 'Full-Stack Developer'],
-      });
+      alert('Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -83,7 +76,7 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium text-text-primary truncate">Ada_Okafor_CV.pdf</div>
-              <div className="text-[11px] text-text-secondary">Parsed · {profile.skills?.length || 14} skills extracted</div>
+              <div className="text-[11px] text-text-secondary">Parsed · {profile.skills?.length || 0} skills extracted</div>
             </div>
             <IconCheck className="w-3.5 h-3.5 text-hirebot-green" />
           </div>
@@ -104,7 +97,7 @@ export default function Sidebar({ profile, onProfileUpdate, activeFilter, onFilt
             Matched skills
           </h3>
           <div className="flex flex-wrap gap-1">
-            {(profile.skills || ['React', 'TypeScript', 'Node.js', 'Python', 'REST APIs', 'PostgreSQL', 'AWS', 'Figma']).map((skill: string) => (
+            {(profile.skills || []).map((skill: string) => (
               <span key={skill} className="text-[11px] px-2 py-0.5 rounded-full bg-surface-secondary border border-border-tertiary text-text-secondary">
                 {skill}
               </span>
